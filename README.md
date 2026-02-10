@@ -1,6 +1,6 @@
-# MediaPilot
-
-## Your AI output folder. Finally usable.
+# MediaPilot (Your AI output folder. Finally usable.)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-vavo-5F7FFF?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white)](https://www.buymeacoffee.com/vavo) [![GitHub Sponsors](https://img.shields.io/github/sponsors/vavo?style=for-the-badge&logo=github)](https://github.com/sponsors/vavo)
+![MediaPilot logo](static/logo-mediapilot.svg)
 
 You generated 3,000 images. You need 12. You can find... maybe 2.
 
