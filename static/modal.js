@@ -103,10 +103,6 @@ function isReservedTagName(value) {
   return name === "untagged" || name === "invokeai" || name === "_root";
 }
 
-const TAG_ICON_OUTLINE =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64' fill='none' stroke='%23ffffff' stroke-width='4' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M10 8h18l22 22-14 14L10 22z'/%3E%3Ccircle cx='16' cy='18' r='3'/%3E%3C/svg%3E";
-const TAG_ICON_FILLED =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64' fill='%23888' stroke='%23888' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M10 8h18l22 22-14 14L10 22z'/%3E%3Ccircle cx='16' cy='18' r='3' fill='%23fff'/%3E%3C/svg%3E";
 const MAG_SIZE = 160;
 const MAG_DELAY = 300;
 
@@ -715,9 +711,8 @@ window.addEventListener("keydown", (e) => {
 
 function updateTagIcon(isTagged) {
   if (modalTag) {
-    modalTag.style.backgroundImage = `url(${
-      isTagged ? TAG_ICON_FILLED : TAG_ICON_OUTLINE
-    })`;
+    modalTag.classList.toggle("tagged", !!isTagged);
+    modalTag.setAttribute("aria-pressed", isTagged ? "true" : "false");
   }
 }
 
