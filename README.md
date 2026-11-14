@@ -2,15 +2,16 @@
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-vavo-5F7FFF?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white)](https://www.buymeacoffee.com/vavo) [![GitHub Sponsors](https://img.shields.io/github/sponsors/vavo?style=for-the-badge&logo=github)](https://github.com/sponsors/vavo)
 ![MediaPilot logo](static/logo-mediapilot.svg)
 
-You generated 3,000 images. You need 12. You can find... maybe 2.
+You generated 3,000 images and videos. You need 12. You can find... maybe 2.
 
-MediaPilot is the control layer for image-generation workflows: a fast local web app to browse, search, tag, and batch-process outputs without folder archaeology at 2 AM.
+MediaPilot is the control layer for image-generation workflows: a fast local web app to browse, preview, search, tag, and batch-process outputs without folder archaeology at 2 AM.
 
 Built for ComfyUI, InvokeAI, and any folder-based pipeline where speed matters more than ceremony.
 
 ## Why MediaPilot
 
 - Instant WebP thumbnails for huge output folders
+- Video listing and browser-native preview for `.mp4`, `.webm`, `.mov`, `.m4v`, `.mkv`, and `.avi`
 - Smart metadata search across prompt, LoRA, sampler, scheduler, steps, and CFG
 - Bulk actions that actually save time: like, tag, delete, ZIP download, upscale queue
 - Optional password gate (server-side cookie session)
@@ -48,21 +49,21 @@ python pregenerate_thumbs.py
 
 ### Gallery View
 
-- `Delete` / `Backspace`: delete selected images
-- `Space` (and legacy `Spacebar`): like/unlike selected images
-- `Enter`: open tag menu for selected images
+- `Delete` / `Backspace`: delete selected media
+- `Space` (and legacy `Spacebar`): like/unlike selected media
+- `Enter`: open tag menu for selected media
 
 Notes:
-- Shortcuts are active only when at least one image is selected.
+- Shortcuts are active only when at least one media item is selected.
 - Shortcuts are ignored while typing in inputs/textareas/contenteditable fields.
 
 ### Modal View
 
 - `Escape`: close modal
-- `Delete` / `Backspace`: delete current image
-- `ArrowLeft` / `ArrowRight`: previous / next image
+- `Delete` / `Backspace`: delete current media item
+- `ArrowLeft` / `ArrowRight`: previous / next media item
 - `ArrowUp` / `ArrowDown`: move up / down by grid row
-- `Space`: like/unlike current image
+- `Space`: like/unlike current media item
 - `Enter`: open tag dropdown
 - `M`: toggle magnifier at cursor
 
@@ -70,7 +71,7 @@ Notes:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `MEDIAPILOT_OUTPUT_DIR` | `./data/output` | Main image directory |
+| `MEDIAPILOT_OUTPUT_DIR` | `./data/output` | Main media directory |
 | `MEDIAPILOT_THUMBS_DIR` | `./data/thumbs` | Thumbnail storage |
 | `MEDIAPILOT_INVOKEAI_DIR` | `./data/invokeai` | Optional InvokeAI image directory |
 | `MEDIAPILOT_DB_FILE` | `./data/data.db` | SQLite file path |
@@ -93,14 +94,14 @@ Notes:
 |---|---|---|
 | `/auth/status` | `GET` | Auth enabled/authenticated flags |
 | `/auth/login` | `POST` | Login with password |
-| `/images` | `GET` | Paginated image listing |
+| `/images` | `GET` | Paginated media listing |
 | `/folders` | `GET` | Folder/tag list |
 | `/folders` | `POST` | Create folder/tag |
-| `/like/{filename}` | `POST` | Like image |
-| `/unlike/{filename}` | `POST` | Unlike image |
-| `/image/{filename}` | `DELETE` | Delete root image |
-| `/image/{folder}/{filename}` | `DELETE` | Delete image in folder |
-| `/download/bulk` | `POST` | Download selected images as ZIP |
+| `/like/{filename}` | `POST` | Like media item |
+| `/unlike/{filename}` | `POST` | Unlike media item |
+| `/image/{filename}` | `DELETE` | Delete root media item |
+| `/image/{folder}/{filename}` | `DELETE` | Delete media item in folder |
+| `/download/bulk` | `POST` | Download selected media as ZIP |
 | `/images?search=...` | `GET` | Smart metadata search in image listing |
 | `/upscale/bulk` | `POST` | Queue selected images for ComfyUI upscale |
 | `/tag` | `POST` | Move/tag image |

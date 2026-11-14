@@ -27,10 +27,11 @@ let promptVisible = false;
 let modalCurrentMetaData = null; // NEW: Store current image's full metadata
 const LORA_REGEX = /<lora:([^>:]+)/i;
 
-let modal, modalImg, modalDelete, modalDownload, modalTag, modalImageWrap;
+let modal, modalImg, modalVideo, modalDelete, modalDownload, modalTag, modalImageWrap;
 let modalNavLeft, modalNavRight;
 let filenameOverlay, promptOverlay, modalHeart;
 let lastModalTapTime = 0;
+let modalMediaType = "image";
 
 // Add styles for delete button and loading state
 const style = document.createElement('style');
@@ -103,12 +104,24 @@ function isReservedTagName(value) {
   return name === "untagged" || name === "invokeai" || name === "_root";
 }
 
+const VIDEO_EXTS = [".mp4", ".webm", ".mov", ".m4v", ".mkv", ".avi"];
 const MAG_SIZE = 160;
 const MAG_DELAY = 300;
+
+function isVideoMedia(item) {
+  if (item?.media_type === "video") return true;
+  const filename = (item?.filename || "").toLowerCase();
+  return VIDEO_EXTS.some((ext) => filename.endsWith(ext));
+}
+
+function mediaUrlFor(item, folder) {
+  return buildFullUrlForFolder(item?.filename || modalFilename, folder || modalFolder);
+}
 
 function initModalDOM() {
     modal = document.getElementById("modal");
     modalImg = document.getElementById("modal-img");
+    modalVideo = document.getElementById("modal-video");
     modalDelete = document.getElementById("modal-delete");
     modalDownload = document.getElementById("modal-download");
     modalTag = document.getElementById("modal-tag");
@@ -200,17 +213,19 @@ function updateModalHeart(liked) {
 
 export function openModal(filename, folder, openTag = false) {
   if (!isNonEmptyString(filename)) return;
+  stopModalVideo();
   modalFilename = filename;
   // No longer assigning to modalImages
   modalFolder = isNonEmptyString(folder) ? folder : "_root";
 
-  modalImg.src = buildFullUrl(filename);
+  const currentIndex = visibleImages.findIndex((img) => img.filename === filename);
+  const currentImage = visibleImages[currentIndex];
+  modalMediaType = isVideoMedia(currentImage || { filename }) ? "video" : "image";
+
+  setModalMedia(currentImage || { filename }, modalFolder);
 
   modal.classList.remove("hidden");
   modal.focus();
-
-  const currentIndex = visibleImages.findIndex((img) => img.filename === filename);
-  const currentImage = visibleImages[currentIndex];
 
   modalPromptText = currentImage?.prompt || null;
   modalCurrentMetaData = currentImage; // NEW: Store the whole object
@@ -243,10 +258,17 @@ export function openModal(filename, folder, openTag = false) {
 }
 
 export function closeModal() {
+  stopModalVideo();
   modal.classList.add("hidden");
   modalFilename = null;
   modalPromptText = null;
   modalCurrentMetaData = null; // NEW: Clear metadata on close
+  modalMediaType = "image";
+  if (modalImg) modalImg.removeAttribute("src");
+  if (modalVideo) {
+    modalVideo.removeAttribute("src");
+    modalVideo.load();
+  }
   promptVisible = false;
   updatePromptOverlay();
   updateModalHeart(false);
@@ -256,6 +278,44 @@ export function closeModal() {
     tagDropdown = null;
   }
 
+}
+
+function setModalMedia(item, folder) {
+  const url = mediaUrlFor(item, folder);
+  if (modalMediaType === "video") {
+    if (modalImg) {
+      modalImg.classList.add("hidden");
+      modalImg.removeAttribute("src");
+    }
+    if (modalVideo) {
+      modalVideo.classList.remove("hidden");
+      modalVideo.src = url;
+      modalVideo.load();
+    }
+    hideMagnifier();
+    return;
+  }
+
+  if (modalVideo) {
+    stopModalVideo();
+    modalVideo.classList.add("hidden");
+    modalVideo.removeAttribute("src");
+    modalVideo.load();
+  }
+  if (modalImg) {
+    modalImg.classList.remove("hidden");
+    modalImg.src = url;
+  }
+}
+
+function stopModalVideo() {
+  if (!modalVideo) return;
+  modalVideo.pause();
+  try {
+    modalVideo.currentTime = 0;
+  } catch (_) {
+    // Some browsers reject seeking before metadata is available.
+  }
 }
 
 function addFilenameOverlay(name, hasPrompt) {
@@ -429,7 +489,7 @@ let magnifierActive = false;
 let lastMousePos = null;
 
 function toggleMagnifierAtCursor() {
-  if (!modalImg) return;
+  if (modalMediaType === "video" || !modalImg) return;
   if (magnifierActive) {
     hideMagnifier();
     return;
@@ -447,7 +507,7 @@ function toggleMagnifierAtCursor() {
 }
 
 export function showMagnifier(clientX, clientY) {
-  if (!modalImg || !modalImageWrap) return;
+  if (modalMediaType === "video" || !modalImg || !modalImageWrap) return;
   
   // Ensure image has loaded and has natural dimensions
   if (modalImg.naturalWidth === 0 || modalImg.naturalHeight === 0) {
@@ -500,7 +560,7 @@ function getRenderedImageDimensions(img) { // This helper is excellent, keep as 
 }
 
 function getRenderedBounds() {
-  if (!modalImg) return null;
+  if (modalMediaType === "video" || !modalImg) return null;
   const rect = modalImg.getBoundingClientRect();
   const rendered = getRenderedImageDimensions(modalImg);
   const left = rect.left + rendered.xOffset;
@@ -536,7 +596,7 @@ function isPointInImage(clientX, clientY) {
 }
 
 export function updateMagnifierPosition(clientX, clientY) {
-  if (!magnifierEl || !modalImg) return;
+  if (modalMediaType === "video" || !magnifierEl || !modalImg) return;
   const bounds = getRenderedBounds();
   if (!bounds) return;
   if (!isPointInImage(clientX, clientY)) {
@@ -649,6 +709,7 @@ async function moveVertical(direction) {
 
 window.addEventListener("keydown", (e) => {
   if (!modalFilename) return;
+  if (e.target === modalVideo && e.key !== "Escape") return;
 
   if (e.key === "Escape") {
     e.preventDefault();
@@ -798,8 +859,8 @@ async function deleteFile() {
   try {
     await API.deleteImage(modalFilename, folderToDelete);
   } catch (error) {
-    console.error("Failed to delete image:", error);
-    notify("Failed to delete image.");
+    console.error("Failed to delete media:", error);
+    notify("Failed to delete media.");
     deleteInFlight = false;
     if (modalDelete) modalDelete.disabled = false;
     return;
@@ -834,10 +895,13 @@ async function deleteFile() {
 }
 
 function downloadFile() {
-  if (!modalFilename || !modalImg.src) return;
+  if (!modalFilename) return;
+  const currentImage = visibleImages.find((img) => img.filename === modalFilename);
+  const href = mediaUrlFor(currentImage || { filename: modalFilename }, modalFolder);
+  if (!href) return;
 
   const a = document.createElement("a");
-  a.href = modalImg.src;
+  a.href = href;
   a.download = modalFilename; // Use modalFilename as the download name
   document.body.appendChild(a);
   a.click();
@@ -983,8 +1047,8 @@ async function applyTag(tag) {
   try {
     await API.sendTag(modalFilename, modalFolder, newFolder);
   } catch (error) {
-    console.error("Failed to tag image:", error);
-    notify("Failed to tag image.");
+    console.error("Failed to tag media:", error);
+    notify("Failed to tag media.");
     return;
   }
 
@@ -1165,8 +1229,9 @@ const PreloadManager = (() => {
     const PRELOAD_BEHIND = 2;
     let preloadedUrls = new Set();
 
-    function preload(filename) {
-        const url = buildFullUrl(filename);
+    function preload(item) {
+        if (isVideoMedia(item)) return;
+        const url = mediaUrlFor(item, modalFolder);
         if (preloadedUrls.has(url)) {
             return;
         }
@@ -1182,7 +1247,7 @@ const PreloadManager = (() => {
         for (let i = 1; i <= PRELOAD_AHEAD; i++) {
             const nextIndex = currentIndex + i;
             if (nextIndex < imageList.length) {
-                preload(imageList[nextIndex].filename);
+                preload(imageList[nextIndex]);
             }
         }
 
@@ -1190,7 +1255,7 @@ const PreloadManager = (() => {
         for (let i = 1; i <= PRELOAD_BEHIND; i++) {
             const prevIndex = currentIndex - i;
             if (prevIndex >= 0) {
-                preload(imageList[prevIndex].filename);
+                preload(imageList[prevIndex]);
             }
         }
     }

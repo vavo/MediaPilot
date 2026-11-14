@@ -83,6 +83,8 @@ UPSCALE_OUTPUT_PREFIX = os.environ.get("MEDIAPILOT_UPSCALE_OUTPUT_PREFIX", "medi
 COMFY_REQUEST_TIMEOUT = env_int("MEDIAPILOT_COMFY_REQUEST_TIMEOUT", 60)
 THUMB_EXT = ".webp"
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+VIDEO_EXTS = (".mp4", ".webm", ".mov", ".m4v", ".mkv", ".avi")
+MEDIA_EXTS = IMAGE_EXTS + VIDEO_EXTS
 
 # Ensure base directories exist to avoid empty/failed listings
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -180,6 +182,10 @@ def make_thumb(full_path, thumb_path):
             img.save(thumb_path, "WEBP", quality=80, method=6)
         except:
             pass
+
+
+def media_type_for_filename(filename: str) -> str:
+    return "video" if filename.lower().endswith(VIDEO_EXTS) else "image"
 
 # ---------------------------------------------------
 # METADATA
@@ -560,6 +566,7 @@ def extract_metadata(full_path: str) -> dict:
 
 class ImageInfo(BaseModel):
     filename: str
+    media_type: str = "image"
     thumb_url: str
     full_url: str
     liked: bool
@@ -886,7 +893,7 @@ def get_images(
 
     file_entries = []
     for f in os.listdir(base_dir):
-        if not f.lower().endswith(IMAGE_EXTS):
+        if not f.lower().endswith(MEDIA_EXTS):
             continue
         full_p = os.path.join(base_dir, f)
         file_entries.append((f, os.path.getmtime(full_p)))
@@ -910,6 +917,8 @@ def get_images(
     if has_search:
         filtered_entries = []
         for f, mtime in file_entries:
+            if media_type_for_filename(f) != "image":
+                continue
             full_path = os.path.join(base_dir, f)
             metadata = extract_metadata(full_path)
             metadata_cache[f] = metadata
@@ -932,28 +941,31 @@ def get_images(
     items = []
     for f, mtime in page_files:
         full_path = os.path.join(base_dir, f)
-        metadata = metadata_cache.get(f)
-        if metadata is None:
+        media_type = media_type_for_filename(f)
+        metadata = metadata_cache.get(f, {})
+        if media_type == "image" and not metadata:
             metadata = extract_metadata(full_path)
 
         if folder == "_root":
             thumb_path = os.path.join(THUMBS_DIR, f + THUMB_EXT)
-            thumb_url = f"/thumbs/{f}{THUMB_EXT}"
+            thumb_url = f"/thumbs/{f}{THUMB_EXT}" if media_type == "image" else ""
             full_url = f"/output/{f}"
         elif folder == "InvokeAI":
             thumb_path = os.path.join(THUMBS_DIR, "InvokeAI", f + THUMB_EXT)
-            thumb_url = f"/thumbs/InvokeAI/{f}{THUMB_EXT}"
+            thumb_url = f"/thumbs/InvokeAI/{f}{THUMB_EXT}" if media_type == "image" else ""
             full_url = f"/invoke/{f}"
         else:
             thumb_path = os.path.join(THUMBS_DIR, folder, f + THUMB_EXT)
-            thumb_url = f"/thumbs/{folder}/{f}{THUMB_EXT}"
+            thumb_url = f"/thumbs/{folder}/{f}{THUMB_EXT}" if media_type == "image" else ""
             full_url = f"/output/{folder}/{f}"
 
-        make_thumb(full_path, thumb_path)
+        if media_type == "image":
+            make_thumb(full_path, thumb_path)
 
         items.append(
             ImageInfo(
                 filename=f,
+                media_type=media_type,
                 full_url=full_url,
                 thumb_url=thumb_url,
                 liked=(f in liked),

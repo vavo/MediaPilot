@@ -67,6 +67,7 @@ function isReservedTagName(value) {
 }
 
 const THUMB_EXT = ".webp";
+const VIDEO_EXTS = [".mp4", ".webm", ".mov", ".m4v", ".mkv", ".avi"];
 
 function encodePathSegment(value) {
   return encodeURIComponent(value);
@@ -92,6 +93,16 @@ function buildFullUrl(filename, folder) {
   if (folder === "InvokeAI") return `/invoke/${safeFilename}`;
   const safeFolder = encodeFolderPath(folder);
   return `/output/${safeFolder}/${safeFilename}`;
+}
+
+function isVideoMedia(item) {
+  if (item?.media_type === "video") return true;
+  const filename = (item?.filename || "").toLowerCase();
+  return VIDEO_EXTS.some((ext) => filename.endsWith(ext));
+}
+
+function mediaUrlFor(item) {
+  return buildFullUrl(item?.filename, currentFolder);
 }
 // Add styles for loading and error states
 const thumbnailStyles = document.createElement('style');
@@ -423,8 +434,8 @@ export async function loadImages(page = 1, append = false) {
     if (images.length === 0 || currentPage >= totalPages) isEnd = true;
 
   } catch (error) {
-    console.error("Failed to load images:", error);
-    notify("Failed to load images.");
+    console.error("Failed to load media:", error);
+    notify("Failed to load media.");
     // Optionally show an error message
   } finally {
     loading = false;
@@ -493,6 +504,7 @@ function renderWithFilters(newImages = null, append = false) {
 function renderCard(img) {
   const card = document.createElement("div");
   card.className = "card";
+  card.dataset.mediaType = isVideoMedia(img) ? "video" : "image";
   card.dataset.filename = img.filename;
   card.dataset.createdAt = img.created_at ?? "";
   if (thumbSlider) {
@@ -505,47 +517,11 @@ function renderCard(img) {
   const wrap = document.createElement("div");
   wrap.className = "img-wrapper";
 
-  const thumbnail = document.createElement("img");
-  thumbnail.loading = "lazy";
-  thumbnail.className = "thumb loading";
-  
-  // Set alt text for accessibility
-  thumbnail.alt = img.filename || 'Gallery thumbnail';
-  
-  if (thumbObserver) {
-    const thumbSrc = buildThumbUrl(img.filename, currentFolder);
-    const fullSrc = buildFullUrl(img.filename, currentFolder);
-    thumbnail.dataset.src = thumbSrc || fullSrc;
-    if (fullSrc) {
-      thumbnail.dataset.fallbackSrc = fullSrc;
-    }
-    thumbObserver.observe(thumbnail);
-  } else {
-    // If no IntersectionObserver, load immediately with retry
-    thumbnail.classList.add('loading');
-    const placeholder = document.createElement('div');
-    placeholder.className = 'thumb-placeholder';
-    placeholder.innerHTML = '<div class="loading-spinner"></div><div>Loading...</div>';
-    
-    wrap.appendChild(thumbnail);
-    wrap.appendChild(placeholder);
-    
-    const thumbSrc = buildThumbUrl(img.filename, currentFolder);
-    const fullSrc = buildFullUrl(img.filename, currentFolder);
-    if (fullSrc) {
-      thumbnail.dataset.fallbackSrc = fullSrc;
-    }
-    loadImageWithRetry(thumbnail, thumbSrc || fullSrc)
-      .then((loaded) => {
-        if (!loaded) return;
-        // Remove placeholder on success
-        if (placeholder.parentNode === wrap) {
-          wrap.removeChild(placeholder);
-        }
-      });
-  }
+  const mediaEl = isVideoMedia(img)
+    ? createVideoPreview(img)
+    : createImagePreview(img, wrap);
 
-  thumbnail.onclick = (e) => {
+  mediaEl.onclick = (e) => {
     e.stopPropagation();
     const now = Date.now();
     const isDouble =
@@ -572,13 +548,87 @@ function renderCard(img) {
   };
   card.appendChild(heart);
 
-  // Only append here if not already appended (happens in the else case above)
-  if (!wrap.contains(thumbnail)) {
-    wrap.appendChild(thumbnail);
+  if (!wrap.contains(mediaEl)) {
+    wrap.appendChild(mediaEl);
   }
   card.appendChild(wrap);
 
   gallery.appendChild(card);
+}
+
+function createImagePreview(img, wrap) {
+  const thumbnail = document.createElement("img");
+  thumbnail.loading = "lazy";
+  thumbnail.className = "thumb loading";
+  thumbnail.alt = img.filename || "Gallery thumbnail";
+
+  if (thumbObserver) {
+    const thumbSrc = buildThumbUrl(img.filename, currentFolder);
+    const fullSrc = mediaUrlFor(img);
+    thumbnail.dataset.src = thumbSrc || fullSrc;
+    if (fullSrc) {
+      thumbnail.dataset.fallbackSrc = fullSrc;
+    }
+    thumbObserver.observe(thumbnail);
+  } else {
+    thumbnail.classList.add("loading");
+    const placeholder = document.createElement("div");
+    placeholder.className = "thumb-placeholder";
+    placeholder.innerHTML = '<div class="loading-spinner"></div><div>Loading...</div>';
+
+    wrap.appendChild(thumbnail);
+    wrap.appendChild(placeholder);
+
+    const thumbSrc = buildThumbUrl(img.filename, currentFolder);
+    const fullSrc = mediaUrlFor(img);
+    if (fullSrc) {
+      thumbnail.dataset.fallbackSrc = fullSrc;
+    }
+    loadImageWithRetry(thumbnail, thumbSrc || fullSrc).then((loaded) => {
+      if (!loaded) return;
+      if (placeholder.parentNode === wrap) {
+        wrap.removeChild(placeholder);
+      }
+    });
+  }
+
+  return thumbnail;
+}
+
+function createVideoPreview(img) {
+  const video = document.createElement("video");
+  video.className = "thumb video-thumb";
+  video.src = mediaUrlFor(img);
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.preload = "metadata";
+  video.setAttribute("aria-label", img.filename || "Video preview");
+
+  const badge = document.createElement("div");
+  badge.className = "video-badge";
+  badge.textContent = "VIDEO";
+  video.addEventListener("loadeddata", () => video.classList.add("loaded"), { once: true });
+  video.addEventListener("mouseenter", () => {
+    const playPromise = video.play();
+    if (playPromise?.catch) playPromise.catch(() => {});
+  });
+  video.addEventListener("mouseleave", () => {
+    video.pause();
+    try {
+      video.currentTime = 0;
+    } catch (_) {
+      // Metadata may not be available yet.
+    }
+  });
+  video.addEventListener("error", () => video.classList.add("error"));
+
+  const wrap = document.createElement("div");
+  wrap.className = "video-overlay-host";
+  wrap.appendChild(video);
+  wrap.appendChild(badge);
+
+  return wrap;
 }
 
 /* -----------------------------------------------------
@@ -883,7 +933,7 @@ async function applyTags(filenames, tag) {
       selectedImages.delete(filename);
     } catch (error) {
       console.error(`Failed to tag ${filename}:`, error);
-      notify("Failed to tag image.");
+      notify("Failed to tag media.");
     }
   }
 
@@ -916,8 +966,15 @@ export function markImageDeleted(filename) {
 
 if (bulkUpscaleBtn) {
   bulkUpscaleBtn.onclick = async () => {
-    const selected = Array.from(selectedImages);
-    if (selected.length === 0) return;
+    const selectedAll = Array.from(selectedImages);
+    const selected = selectedAll.filter((filename) => {
+      const item = imagesList.find((img) => img.filename === filename);
+      return !isVideoMedia(item || { filename });
+    });
+    if (selected.length === 0) {
+      if (selectedAll.length > 0) notify("Upscale only supports images.");
+      return;
+    }
 
     bulkUpscaleBtn.disabled = true;
     try {
@@ -960,8 +1017,8 @@ bulkDownloadBtn.onclick = async () => {
     a.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (err) {
-    console.error("Failed to download selected images:", err);
-    notify("Failed to download selected images.");
+    console.error("Failed to download selected media:", err);
+    notify("Failed to download selected media.");
   } finally {
     bulkDownloadBtn.disabled = false;
   }
@@ -983,7 +1040,7 @@ bulkDeleteBtn.onclick = async () => {
       markImageDeleted(filename);
     } catch (err) {
       console.error(`Error deleting ${filename}:`, err);
-      notify("Failed to delete image.");
+      notify("Failed to delete media.");
       // If there was a network error, do not remove from client-side UI/lists
     }
   }

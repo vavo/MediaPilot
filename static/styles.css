@@ -39,6 +39,10 @@ html, body {
   visibility: hidden;
 }
 
+.hidden {
+  display: none !important;
+}
+
 .toast-container {
   position: fixed;
   left: 50%;
@@ -344,6 +348,34 @@ main {
   user-select: none;
 }
 
+.video-overlay-host {
+  position: relative;
+  width: 100%;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.video-thumb {
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: #050505;
+}
+
+.video-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
 /* Heart overlay */
 .card .heart-overlay {
   position: absolute;
@@ -496,7 +528,8 @@ main {
   background: #000;
 }
 
-.modal-img {
+.modal-img,
+.modal-video {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -505,6 +538,10 @@ main {
   touch-action: manipulation;
   -webkit-user-drag: none;
   user-select: none;
+}
+
+.modal-video {
+  background: #000;
 }
 
 .magnifier {
